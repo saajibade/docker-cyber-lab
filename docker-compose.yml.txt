@@ -1,0 +1,90 @@
+# Containerized Cybersecurity Home Lab & Web Exploitation
+
+> **Quick Summary:** 
+> Built an isolated, containerized security lab using **Docker Compose** featuring **OWASP Juice Shop**, **DVWA (Damn Vulnerable Web Application)**, and an attacker container running **Kali Linux**. Executed hands-on web application attacks including **SQL Injection (SQLi)** and **Reflected Cross-Site Scripting (XSS)**.
+
+---
+
+## 🏗️ Lab Architecture
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Docker Desktop Host                           │
+│                                                                         │
+│   ┌────────────────────┐   ┌────────────────────┐   ┌───────────────┐   │
+│   │   OWASP Juice Shop │   │        DVWA        │   │  Kali Linux   │   │
+│   │   (Port 3000)      │   │     (Port 8080)    │   │  (Attacker)   │   │
+│   └─────────▲──────────┘   └─────────▲──────────┘   └───────▲───────┘   │
+└─────────────┼────────────────────────┼──────────────────────┼───────────┘
+              └────────────────────────┴──────────────────────┘
+                                  Local Host Browser
+```
+
+---
+
+## 🛠️ Lab Setup & Configuration
+
+<details>
+<summary><b>Click to expand docker-compose.yml configuration</b></summary>
+
+```yaml
+services:
+  juice-shop:
+    image: bkimminich/juice-shop
+    ports:
+      - "3000:3000"
+
+  dvwa:
+    image: vulnerables/web-dvwa
+    ports:
+      - "8080:80"
+
+  kali:
+    image: kalilinux/kali-rolling
+    container_name: kali_attacker
+    tty: true
+    stdin_open: true
+```
+</details>
+
+---
+
+## ⚔️ Executed Attacks & Proof of Concepts
+
+### 1. DVWA: SQL Injection (Database Dumping)
+* **Target:** DVWA (`http://localhost:8080`)
+* **Vector:** User ID Input Field
+* **Payload:** `1' OR '1'='1`
+* **Result:** Tricked the SQL database into evaluating the query as true for all rows, leaking all stored account credentials.
+
+![DVWA SQL Injection](images/01-dvwa-sqli.png)
+
+---
+
+### 2. DVWA: Reflected Cross-Site Scripting (XSS)
+* **Target:** DVWA (`http://localhost:8080`)
+* **Vector:** Name Input Parameter
+* **Payload:** `<script>alert('hacked')</script>`
+* **Result:** Executed arbitrary client-side JavaScript code directly within the victim's browser context.
+
+![DVWA XSS Alert](images/02-dvwa-xss.png)
+
+---
+
+### 3. OWASP Juice Shop: Admin Authentication Bypass
+* **Target:** OWASP Juice Shop (`http://localhost:3000`)
+* **Vector:** Email Login Field
+* **Payload:** `' OR 1=1--`
+* **Result:** Exploited backend query handling to authenticate as the Administrator without knowing the account password.
+
+![Juice Shop Admin Bypass](images/03-juiceshop-admin.png)
+
+---
+
+## 💡 Key Takeaways & Security Remediation
+
+| Vulnerability | Root Cause | Defense & Mitigation |
+| :--- | :--- | :--- |
+| **SQL Injection** | Dynamic query building via string concatenation. | Implement **Parameterized Queries (Prepared Statements)** and strict input validation. |
+| **Reflected XSS** | Context-agnostic rendering of untrusted user input in the DOM. | Enforce **Context-Aware Output Encoding** and implement strong **Content Security Policies (CSP)**. |
+| **Auth Bypass** | Insecure login query construction evaluating user input as executable SQL. | Use secure ORMs/authentication libraries and separate SQL logic from raw input. |
