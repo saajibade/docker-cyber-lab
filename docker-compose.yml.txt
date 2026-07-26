@@ -1,11 +1,13 @@
-# Containerized Cybersecurity Home Lab & Web Exploitation
+# Containerized Web Application Security Lab & Vulnerability Exploitation
 
-> **Quick Summary:** 
-> Built an isolated, containerized security lab using **Docker Compose** featuring **OWASP Juice Shop**, **DVWA (Damn Vulnerable Web Application)**, and an attacker container running **Kali Linux**. Executed hands-on web application attacks including **SQL Injection (SQLi)** and **Reflected Cross-Site Scripting (XSS)**.
+> **Executive Summary:**  
+> Architected a local, multi-container security testing environment using **Docker Compose** to simulate real-world web application vulnerabilities and attack vectors. Deployed target applications (**OWASP Juice Shop** and **DVWA**) alongside an offensive security container (**Kali Linux**). Executed manual exploits including **SQL Injection (SQLi)**, **Reflected Cross-Site Scripting (XSS)**, and **Admin Authentication Bypass**.
 
 ---
 
-## 🏗️ Lab Architecture
+## 🏗️ Architecture & Lab Design
+
+The environment leverages Docker networking to isolate target applications while enabling communication between the attacker container and targets.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────────────┐
@@ -20,12 +22,17 @@
                                   Local Host Browser
 ```
 
+### Stack Components
+* **OWASP Juice Shop (`port 3000`):** Modern Node.js/Angular web application containing OWASP Top 10 security flaws.
+* **DVWA (`port 8080`):** PHP/MySQL vulnerable web application configured to "Low" security level for baseline exploitation testing.
+* **Kali Linux Container (`kali_attacker`):** Attacker platform equipped with command-line penetration testing utilities (`nmap`, `sqlmap`, `curl`).
+
 ---
 
-## 🛠️ Lab Setup & Configuration
+## 🛠️ Infrastructure Configuration
 
 <details>
-<summary><b>Click to expand docker-compose.yml configuration</b></summary>
+<summary><b>Click to view docker-compose.yml</b></summary>
 
 ```yaml
 services:
@@ -49,42 +56,42 @@ services:
 
 ---
 
-## ⚔️ Executed Attacks & Proof of Concepts
+## ⚔️ Deep-Dive Vulnerability Exploitation
 
-### 1. DVWA: SQL Injection (Database Dumping)
-* **Target:** DVWA (`http://localhost:8080`)
-* **Vector:** User ID Input Field
-* **Payload:** `1' OR '1'='1`
-* **Result:** Tricked the SQL database into evaluating the query as true for all rows, leaking all stored account credentials.
+### 1. SQL Injection (DVWA)
+* **Target:** `http://localhost:8080/vulnerabilities/sqli/`
+* **Vulnerability Type:** Inband / Classic SQL Injection
+* **Exploitation Method:** Entered `1' OR '1'='1` into the User ID parameter. 
+* **Impact:** Broke the SQL syntax query structure, forcing the backend MySQL query to evaluate to true (`TRUE OR TRUE`) for all records, resulting in full user account credential dumping.
 
 ![DVWA SQL Injection](images/01-dvwa-sqli.png)
 
 ---
 
-### 2. DVWA: Reflected Cross-Site Scripting (XSS)
-* **Target:** DVWA (`http://localhost:8080`)
-* **Vector:** Name Input Parameter
-* **Payload:** `<script>alert('hacked')</script>`
-* **Result:** Executed arbitrary client-side JavaScript code directly within the victim's browser context.
+### 2. Reflected Cross-Site Scripting (DVWA)
+* **Target:** `http://localhost:8080/vulnerabilities/xss_r/`
+* **Vulnerability Type:** Non-Persistent Client-Side Code Execution
+* **Exploitation Method:** Submitted `<script>alert('hacked')</script>` inside the `name` GET parameter.
+* **Impact:** The application rendered user input directly into the HTML DOM without sanitization, triggering arbitrary JavaScript execution in the client browser context.
 
-![DVWA XSS Alert](images/02-dvwa-xss.png)
+![Reflected XSS Alert](images/02-dvwa-xss.png)
 
 ---
 
-### 3. OWASP Juice Shop: Admin Authentication Bypass
-* **Target:** OWASP Juice Shop (`http://localhost:3000`)
-* **Vector:** Email Login Field
-* **Payload:** `' OR 1=1--`
-* **Result:** Exploited backend query handling to authenticate as the Administrator without knowing the account password.
+### 3. Administrator Authentication Bypass (OWASP Juice Shop)
+* **Target:** `http://localhost:3000/#/login`
+* **Vulnerability Type:** SQL Injection in Authentication Handlers
+* **Exploitation Method:** Supplied `' OR 1=1--` as the email address with a dummy password.
+* **Impact:** Neutralized the password check using SQL comment characters (`--`), allowing direct authentication as `admin@juice-sh.op` without authorization credentials.
 
 ![Juice Shop Admin Bypass](images/03-juiceshop-admin.png)
 
 ---
 
-## 💡 Key Takeaways & Security Remediation
+## 🛡️ Remediation & Security Controls
 
-| Vulnerability | Root Cause | Defense & Mitigation |
+| Vulnerability | Root Cause | Recommended Defense |
 | :--- | :--- | :--- |
-| **SQL Injection** | Dynamic query building via string concatenation. | Implement **Parameterized Queries (Prepared Statements)** and strict input validation. |
-| **Reflected XSS** | Context-agnostic rendering of untrusted user input in the DOM. | Enforce **Context-Aware Output Encoding** and implement strong **Content Security Policies (CSP)**. |
-| **Auth Bypass** | Insecure login query construction evaluating user input as executable SQL. | Use secure ORMs/authentication libraries and separate SQL logic from raw input. |
+| **SQL Injection** | Unsanitized user input directly concatenated into backend SQL statements. | Implement **Parameterized Queries (Prepared Statements)** or Object-Relational Mapping (ORM). |
+| **Reflected XSS** | Context-agnostic input rendering without HTML entity encoding. | Implement **Context-Aware Output Encoding** and enforce strict **Content Security Policy (CSP)** headers. |
+| **Auth Bypass** | Insecure authentication queries accepting raw inline parameters. | Separate SQL logic from raw user data and utilize secure identity management standard frameworks. |
